@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, date
 import os
 
 # File to store the runs data
@@ -11,12 +11,16 @@ RUNS_FILE = 'runs_data.csv'
 @st.cache_data
 def load_runs():
     if os.path.exists(RUNS_FILE):
-        return pd.read_csv(RUNS_FILE, parse_dates=['Date'])
+        df = pd.read_csv(RUNS_FILE)
+        df['Date'] = pd.to_datetime(df['Date']).dt.date  # Convert to date
+        return df
     return pd.DataFrame(columns=['Date', 'Name', 'Distance'])
 
 # Save runs to file
 def save_runs(runs_df):
+    runs_df['Date'] = runs_df['Date'].astype(str)  # Convert date to string for saving
     runs_df.to_csv(RUNS_FILE, index=False)
+    runs_df['Date'] = pd.to_datetime(runs_df['Date']).dt.date  # Convert back to date
 
 # Initialize runs
 runs = load_runs()
@@ -52,9 +56,9 @@ st.title('Run Tracker')
 # Sidebar for adding new runs
 st.sidebar.header('Log a New Run')
 with st.sidebar.form(key='log_run'):
-    st.date_input('Date', key='date')
+    st.date_input('Date', key='date', value=date.today())
     st.selectbox('Name', options=list(NAMES_COLORS.keys()), key='name')
-    st.number_input('Distance (km)', min_value=0.1, step=0.1, key='distance')
+    st.number_input('Distance (km)', min_value=5, step=1, key='distance')
     submit_button = st.form_submit_button(label='Log Run', on_click=add_run)
 
 # Main page content
@@ -99,7 +103,6 @@ with tab1:
 
         # Runner Progress Over Time
         runner_progress = runs.copy()
-        runner_progress['Date'] = pd.to_datetime(runner_progress['Date'])
         runner_progress = runner_progress.sort_values('Date')
         runner_progress['Cumulative Distance'] = runner_progress.groupby('Name')['Distance'].cumsum()
 
