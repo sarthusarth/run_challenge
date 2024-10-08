@@ -2,10 +2,24 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+import os
 
-# Initialize session state
-if 'runs' not in st.session_state:
-    st.session_state.runs = pd.DataFrame(columns=['Date', 'Name', 'Distance'])
+# File to store the runs data
+RUNS_FILE = 'runs_data.csv'
+
+# Load existing runs from file or create empty DataFrame
+@st.cache_data
+def load_runs():
+    if os.path.exists(RUNS_FILE):
+        return pd.read_csv(RUNS_FILE, parse_dates=['Date'])
+    return pd.DataFrame(columns=['Date', 'Name', 'Distance'])
+
+# Save runs to file
+def save_runs(runs_df):
+    runs_df.to_csv(RUNS_FILE, index=False)
+
+# Initialize runs
+runs = load_runs()
 
 # Fixed list of names with associated colors
 NAMES_COLORS = {
@@ -17,15 +31,21 @@ NAMES_COLORS = {
 }
 
 def add_run():
+    global runs
     new_run = pd.DataFrame({
         'Date': [st.session_state.date],
         'Name': [st.session_state.name],
         'Distance': [st.session_state.distance]
     })
-    st.session_state.runs = pd.concat([st.session_state.runs, new_run], ignore_index=True)
+    runs = pd.concat([runs, new_run], ignore_index=True)
+    save_runs(runs)
+    st.cache_data.clear()
 
 def delete_run(index):
-    st.session_state.runs = st.session_state.runs.drop(index).reset_index(drop=True)
+    global runs
+    runs = runs.drop(index).reset_index(drop=True)
+    save_runs(runs)
+    st.cache_data.clear()
 
 st.title('Run Tracker')
 
@@ -42,8 +62,8 @@ tab1, tab2 = st.tabs(['Leaderboard', 'All Runs'])
 
 with tab1:
     st.header('Leaderboard')
-    if not st.session_state.runs.empty:
-        leaderboard = st.session_state.runs.groupby('Name').agg({
+    if not runs.empty:
+        leaderboard = runs.groupby('Name').agg({
             'Distance': ['sum', 'count']
         }).reset_index()
         leaderboard.columns = ['Name', 'Total Distance', 'Number of Runs']
@@ -78,7 +98,7 @@ with tab1:
         st.plotly_chart(fig_avg)
 
         # Runner Progress Over Time
-        runner_progress = st.session_state.runs.copy()
+        runner_progress = runs.copy()
         runner_progress['Date'] = pd.to_datetime(runner_progress['Date'])
         runner_progress = runner_progress.sort_values('Date')
         runner_progress['Cumulative Distance'] = runner_progress.groupby('Name')['Distance'].cumsum()
@@ -93,8 +113,8 @@ with tab1:
 
 with tab2:
     st.header('All Runs')
-    if not st.session_state.runs.empty:
-        for index, run in st.session_state.runs.iterrows():
+    if not runs.empty:
+        for index, run in runs.iterrows():
             col1, col2, col3, col4 = st.columns([3, 3, 3, 1])
             with col1:
                 st.write(f"Date: {run['Date']}")
